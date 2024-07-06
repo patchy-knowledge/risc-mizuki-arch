@@ -23,3 +23,5 @@ ALU operations:
 13:
 14:
 15:
+
+opcode format: 

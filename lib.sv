@@ -255,3 +255,20 @@ module BarrelShiftRegister
 
 endmodule : BarrelShiftRegister
 
+module half_adder
+  (input  logic a, b,
+   output logic sum, carry);
+
+  assign {carry, sum} = a + b;
+endmodule : half_adder
+
+module full_adder
+  (input  logic a, b, cin,
+   output logic sum, cout);
+
+  logic c1, c2;
+
+  half_adder ha1(.a(a), .b(b), .sum(c1), .carry(c2));
+  half_adder ha2(.a(c1), .b(cin), .sum(sum), .carry(cout));
+
+endmodule : full_adder
