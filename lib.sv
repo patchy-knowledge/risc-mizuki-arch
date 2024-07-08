@@ -272,3 +272,20 @@ module full_adder
   half_adder ha2(.a(c1), .b(cin), .sum(sum), .carry(cout));
 
 endmodule : full_adder
+
+module memory4096x32
+  (input  logic        clock, enable,
+   input  logic        we,
+   input  logic [31:0] data_in,
+   output logic [31:0] data_out,
+   input  logic [11:0] address);
+
+  logic [31:0] mem [10'hFFF:10'h000];
+
+  assign data_out = mem[address];
+
+  always_ff @(posedge clock)
+    if (enable & we)
+      mem[address] <= data_in;
+
+endmodule : memory4096x32
