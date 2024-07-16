@@ -114,26 +114,6 @@ module Decoder
   end
 
 endmodule : Decoder
-
-// A DFlipFlop stores the input bit synchronously with the clock signal.
-// preset and reset are asynchronous inputs.
-module DFlipFlop
-  (input  logic d,
-   input  logic preset_L, reset_L, clock,
-   output logic q);
-
-  always_ff @(posedge clock, negedge preset_L, negedge reset_L)
-    if (~preset_L & reset_L)
-      q <= 1'b1;
-    else if (~reset_L & preset_L)
-      q <= 1'b0;
-    else if (~reset_L & ~preset_L)
-      q <= 1'bX;
-    else
-      q <= d;
-
-endmodule : DFlipFlop
-
 // A Register stores a multi-bit value.
 // Enable has priority over Clear
 module Register
@@ -171,6 +151,22 @@ module Counter
 
 endmodule : Counter
 
+module DFlipFlop
+  (input  logic d,
+   input  logic preset_L, reset_L, clock,
+   output logic q);
+
+  always_ff @(posedge clock, negedge preset_L, negedge reset_L)
+    if (~preset_L & reset_L)
+      q <= 1'b1;
+    else if (~reset_L & preset_L)
+      q <= 1'b0;
+    else if (~reset_L & ~preset_L)
+      q <= 1'bX;
+    else
+      q <= d;
+
+endmodule : DFlipFlop
 // A Synchronizer takes an asynchronous input and changes it to synchronized
 module Synchronizer
   (input  logic async, clock,
@@ -178,15 +174,15 @@ module Synchronizer
 
   logic metastable;
 
-  DFlipFlop one(.D(async),
-                .Q(metastable),
+  DFlipFlop one(.d(async),
+                .q(metastable),
                 .clock,
                 .preset_L(1'b1),
                 .reset_L(1'b1)
                );
 
-  DFlipFlop two(.D(metastable),
-                .Q(sync),
+  DFlipFlop two(.d(metastable),
+                .q(sync),
                 .clock,
                 .preset_L(1'b1),
                 .reset_L(1'b1)
@@ -209,7 +205,7 @@ module ShiftRegisterSIPO
       else
         Q <= {serial, Q[WIDTH-1:1]};
 
-endmodule : ShiftRegister_SIPO
+endmodule : ShiftRegisterSIPO
 
 // A PIPO Shift Register, with controllable shift direction
 // Load has priority over shifting.
@@ -228,7 +224,7 @@ module ShiftRegisterPIPO
       else
         Q <= {1'b0, Q[WIDTH-1:1]};
 
-endmodule : ShiftRegister_PIPO
+endmodule : ShiftRegisterPIPO
 
 // A BSR shifts bits to the left by a variable amount
 module BarrelShiftRegister
@@ -273,6 +269,41 @@ module full_adder
 
 endmodule : full_adder
 
+module demux #(parameter OUT_WIDTH = 32, IN_WIDTH = 5, DEFAULT = 0)(
+   input                      in,
+   input [IN_WIDTH-1:0]       sel,
+   output logic [OUT_WIDTH-1:0] out);
+
+   always_comb begin
+      out = (DEFAULT === 1'b0) ? {OUT_WIDTH {1'b0}} : {OUT_WIDTH {1'b1}};
+      out[sel] = in;
+   end
+
+endmodule : demux
+
+module double_demux #(parameter OUT_WIDTH = 32, IN_WIDTH = 5, DEFAULT = 0)
+  (input  logic                 in,
+   input  logic [IN_WIDTH-1:0]  sel1,
+   input  logic [IN_WIDTH-1:0]  sel2,
+   output logic [OUT_WIDTH-1:0] out);
+   
+  always_comb begin
+    out = (DEFAULT === 1'b0) ? {OUT_WIDTH {1'b0}} : {OUT_WIDTH {1'b1}};
+    out[sel1] = in;
+    out[sel2] = in;
+  end
+
+endmodule : double_demux
+
+module Mux2D #(parameter MUX_WIDTH = 2, WORD_WIDTH = 32)
+  (input  logic [MUX_WIDTH-1:0] [WORD_WIDTH-1:0] in,
+   input  logic [$clog2(MUX_WIDTH)-1:0] sel,
+   output logic [WORD_WIDTH-1:0] out);
+  
+  assign out = in[sel];
+
+endmodule : Mux2D
+
 module memory4096x32
   (input  logic        clock, enable,
    input  logic        we,
@@ -280,7 +311,7 @@ module memory4096x32
    output logic [31:0] data_out,
    input  logic [11:0] address);
 
-  logic [31:0] mem [10'hFFF:10'h000];
+  logic [31:0] mem [12'hFFF:12'h000];
 
   assign data_out = mem[address];
 
@@ -289,3 +320,55 @@ module memory4096x32
       mem[address] <= data_in;
 
 endmodule : memory4096x32
+
+module RegFile 
+  (input  logic   [4:0] selA1,
+   input  logic   [4:0] selA2,
+   input  logic   [4:0] selA3,
+   input  logic  [31:0] WD3,
+   input  logic         clock, clear,
+   output logic  [31:0] RD1,
+                        RD2);
+
+  logic [31:0] [31:0] regfile;
+  logic [31:0] write_enable;
+
+  demux #(32, 5) demux1(.in(1'b1), .sel(selA3), .out(write_enable));
+
+  assign regfile[0] = 32'b0;
+  Register #(32) reg1(.Q(regfile[1]), .D(WD3), .en(write_enable[1]), .clock(clock), .clear(clear));
+  Register #(32) reg2(.Q(regfile[2]), .D(WD3), .en(write_enable[2]), .clock(clock), .clear(clear));
+  Register #(32) reg3(.Q(regfile[3]), .D(WD3), .en(write_enable[3]), .clock(clock), .clear(clear));
+  Register #(32) reg4(.Q(regfile[4]), .D(WD3), .en(write_enable[4]), .clock(clock), .clear(clear));
+  Register #(32) reg5(.Q(regfile[5]), .D(WD3), .en(write_enable[5]), .clock(clock), .clear(clear));
+  Register #(32) reg6(.Q(regfile[6]), .D(WD3), .en(write_enable[6]), .clock(clock), .clear(clear));
+  Register #(32) reg7(.Q(regfile[7]), .D(WD3), .en(write_enable[7]), .clock(clock), .clear(clear));
+  Register #(32) reg8(.Q(regfile[8]), .D(WD3), .en(write_enable[8]), .clock(clock), .clear(clear));
+  Register #(32) reg9(.Q(regfile[9]), .D(WD3), .en(write_enable[9]), .clock(clock), .clear(clear));
+  Register #(32) reg10(.Q(regfile[10]), .D(WD3), .en(write_enable[10]), .clock(clock), .clear(clear));
+  Register #(32) reg11(.Q(regfile[11]), .D(WD3), .en(write_enable[11]), .clock(clock), .clear(clear));
+  Register #(32) reg12(.Q(regfile[12]), .D(WD3), .en(write_enable[12]), .clock(clock), .clear(clear));
+  Register #(32) reg13(.Q(regfile[13]), .D(WD3), .en(write_enable[13]), .clock(clock), .clear(clear));
+  Register #(32) reg14(.Q(regfile[14]), .D(WD3), .en(write_enable[14]), .clock(clock), .clear(clear));
+  Register #(32) reg15(.Q(regfile[15]), .D(WD3), .en(write_enable[15]), .clock(clock), .clear(clear));
+  Register #(32) reg16(.Q(regfile[16]), .D(WD3), .en(write_enable[16]), .clock(clock), .clear(clear));
+  Register #(32) reg17(.Q(regfile[17]), .D(WD3), .en(write_enable[17]), .clock(clock), .clear(clear));
+  Register #(32) reg18(.Q(regfile[18]), .D(WD3), .en(write_enable[18]), .clock(clock), .clear(clear));
+  Register #(32) reg19(.Q(regfile[19]), .D(WD3), .en(write_enable[19]), .clock(clock), .clear(clear));
+  Register #(32) reg20(.Q(regfile[20]), .D(WD3), .en(write_enable[20]), .clock(clock), .clear(clear));
+  Register #(32) reg21(.Q(regfile[21]), .D(WD3), .en(write_enable[21]), .clock(clock), .clear(clear));
+  Register #(32) reg22(.Q(regfile[22]), .D(WD3), .en(write_enable[22]), .clock(clock), .clear(clear));
+  Register #(32) reg23(.Q(regfile[23]), .D(WD3), .en(write_enable[23]), .clock(clock), .clear(clear));
+  Register #(32) reg24(.Q(regfile[24]), .D(WD3), .en(write_enable[24]), .clock(clock), .clear(clear));
+  Register #(32) reg25(.Q(regfile[25]), .D(WD3), .en(write_enable[25]), .clock(clock), .clear(clear));
+  Register #(32) reg26(.Q(regfile[26]), .D(WD3), .en(write_enable[26]), .clock(clock), .clear(clear));
+  Register #(32) reg27(.Q(regfile[27]), .D(WD3), .en(write_enable[27]), .clock(clock), .clear(clear));
+  Register #(32) reg28(.Q(regfile[28]), .D(WD3), .en(write_enable[28]), .clock(clock), .clear(clear));
+  Register #(32) reg29(.Q(regfile[29]), .D(WD3), .en(write_enable[29]), .clock(clock), .clear(clear));
+  Register #(32) reg30(.Q(regfile[30]), .D(WD3), .en(write_enable[30]), .clock(clock), .clear(clear));
+  Register #(32) reg31(.Q(regfile[31]), .D(WD3), .en(write_enable[31]), .clock(clock), .clear(clear));
+
+  Mux2D #(32, 32) mux1(.in(regfile), .sel(selA1), .out(RD1));
+  Mux2D #(32, 32) mux2(.in(regfile), .sel(selA2), .out(RD2));
+
+endmodule : RegFile
