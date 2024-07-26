@@ -5,14 +5,15 @@ module hazard_branch_unit(
                        Rs1E,
                        Rs2E,
                        RdM,
+                       RdW,
                        PCSrcE,
                        RegWriteW,
                        RegWriteM,
                        ResultSrcE0,
                        BranchPredicted,
     output logic [1:0] ForwardAE,
-                 [1:0] ForwardBE
-                       StallF,
+                 [1:0] ForwardBE,
+    output logic       StallF,
                        StallD,
                        FlushD,
                        FlushE);
